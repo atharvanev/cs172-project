@@ -26,3 +26,5 @@ Group Members
 * Austin Le
 * David Lee
 * Brandon Sun
+
+To begin, start a venv and download needed dependencies with bash setup.sh and source venv/bin/activate to activate the environment. All seed urls can be found within seed_urls.txt (feel free to add more). Can run web crawler in crawling directory with command: scrapy crawl "name_of_crawler"
