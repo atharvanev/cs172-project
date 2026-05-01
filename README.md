@@ -12,7 +12,6 @@ Example of possible output:
     "body": "stripped text content...", 
     "crawled_at": "2025-04-28T10:30:00", 
     "depth": 2, 
-    "filename": "page_0042.html", 
     "outgoing_links": ["https://example.edu/other.html", "..."] 
 } 
 ```
