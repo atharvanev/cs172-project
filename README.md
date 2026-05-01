@@ -41,5 +41,6 @@ Use to run the crawler
 ```
 cd crawling
 scrappy crawl wiki
+scrapy crawl wiki -o output.json
 ```
 
