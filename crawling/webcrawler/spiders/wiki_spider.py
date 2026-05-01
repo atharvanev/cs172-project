@@ -12,6 +12,7 @@ def load_seed_urls(filepath):
 
 class Spider_Wiki_Scraper(scrapy.Spider):
     name = "wiki"
+    allowed_domains = ["wikipedia.org"]
 
     #Loop through all seed_urls
     async def start(self):
