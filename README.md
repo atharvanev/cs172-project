@@ -10,7 +10,6 @@ Example of possible output:
 { "url": "https://example.edu/page.html", 
     "title": "Example Page", 
     "body": "stripped text content...", 
-    "creation_date": "2024-01-15", 
     "crawled_at": "2025-04-28T10:30:00", 
     "depth": 2, 
     "filename": "page_0042.html", 
