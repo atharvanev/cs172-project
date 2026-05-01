@@ -14,7 +14,6 @@ class WebcrawlerItem(scrapy.Item):
     depth = scrapy.Field()
     crawled_at = scrapy.Field()
     outgoing_links = scrapy.Field()
-    filename = scrapy.Field()
     pass
 
 
