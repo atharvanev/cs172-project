@@ -35,3 +35,11 @@ to activate the environment.
 All seed urls can be found within seed_urls.txt (feel free to add more). 
 You can also run the web crawler in crawling directory with command: 
 ```scrapy crawl "name_of_crawler"```
+
+Use to run the crawler
+
+```
+cd crawling
+scrappy crawl wiki
+```
+
