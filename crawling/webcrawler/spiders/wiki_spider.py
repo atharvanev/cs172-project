@@ -1,6 +1,7 @@
 from pathlib import Path
-
+from webcrawler.items import WebcrawlerItem
 import scrapy
+from datetime import datetime
 
 folder = Path("pages")
 folder.mkdir(parents=True, exist_ok=True)
@@ -21,9 +22,16 @@ class Spider_Wiki_Scraper(scrapy.Spider):
             yield scrapy.Request(url=url, callback=self.parse)
 
     #Get HTML of pages and parse them
-    def parse(self, response):
-        page = response.url.split("/")[-1]
-        filename = f"Page-{page}.html"
-        filepath = folder/filename
-        Path(filepath).write_bytes(response.body)
-        self.log(f"Saved file {filename}")
+    def parse(self, response) -> WebcrawlerItem:
+        
+        page_item = WebcrawlerItem()
+
+        page_item["url"] = response.url
+        page_item["title"] = response.xpath("//title/text()").get()
+        page_item["body"] = response.xpath("//body//text()").getall()
+        #page_item["creation_date"] = response.headers.get("Date", "").decode("utf-8")
+        page_item["crawled_at"] = datetime.now().isoformat()
+        page_item["depth"] = depth+1
+        page_item["outgoing_links"] = response.xpath("//a/@href").getall()
+
+        return page_item
