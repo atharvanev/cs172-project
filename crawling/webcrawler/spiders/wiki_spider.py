@@ -29,7 +29,7 @@ class Spider_Wiki_Scraper(scrapy.Spider):
 
         page_item["url"] = response.url
         page_item["title"] = response.xpath("//title/text()").get()
-        page_item["body"] = response.xpath("//p//text()").getall()
+        page_item["body"] = response.text
         page_item["crawled_at"] = datetime.now().isoformat()
         page_item["depth"] = depth
         raw_links = response.xpath("//a/@href").getall()
@@ -38,9 +38,9 @@ class Spider_Wiki_Scraper(scrapy.Spider):
 
 
         #based on my knolwedge scrappy the Scrappy has its own Queue system and it will handle the scheduling of requests. So we just need to yield new requests and Scrapy will take care of the rest.
-        for link in absolute_links:
-            #add some logic for dedepublication 
-            # looking in settings.py to change the Depth limit to do full test
-            yield scrapy.Request(url=link, callback=self.parse, meta={"depth": depth + 1}) #increase depth for outgoing links and puts it in the Queue
+        # for link in absolute_links:
+        #     #add some logic for dedepublication 
+        #     # looking in settings.py to change the Depth limit to do full test
+        #     yield scrapy.Request(url=link, callback=self.parse, meta={"depth": depth + 1}) #increase depth for outgoing links and puts it in the Queue
 
         yield page_item
