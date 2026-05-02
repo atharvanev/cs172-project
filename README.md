@@ -14,6 +14,7 @@ This repository contains a Scrapy-based HTML web crawler. It starts from a list 
 
 - Seed-based crawling from `crawling/seed_urls.txt`.
 - Configurable crawl bounds with `max_pages` and `max_depth`.
+- Optional hostname suffix filtering with `domain_suffixes` (for example `.edu` or `.gov`).
 - Duplicate prevention using normalized URL tracking.
 - Polite crawling defaults (`robots.txt` support and request delay).
 - HTML page snapshot storage and JSON export of extracted fields.
@@ -47,11 +48,13 @@ cd crawling
 scrapy crawl wiki
 scrapy crawl wiki -o output.json
 scrapy crawl wiki -a max_pages=100 -a max_depth=2 -o output.json
+scrapy crawl wiki -a domain_suffixes=.edu,.gov -a max_pages=50 -a max_depth=1 -o output.json
 ```
 
 Runtime arguments:
 - `max_pages`: maximum total pages to schedule/fetch before stopping (default: `50`)
 - `max_depth`: maximum hyperlink depth from seed URLs (default: `1`)
+- `domain_suffixes`: comma-separated hostname suffix filters like `.edu` or `.gov` (optional). When unset, the crawler uses Scrapy `allowed_domains` (`wikipedia.org` for this spider). When set, only `http/https` URLs whose hostnames end with one of the suffixes are scheduled, and outgoing links recorded in JSON follow the same filter.
 
 ## Output
 
@@ -79,6 +82,8 @@ Example output record:
 - Uses polite crawl rate (`DOWNLOAD_DELAY = 1`, `CONCURRENT_REQUESTS_PER_DOMAIN = 1`).
 - Deduplicates crawls using normalized URLs.
 - Skips non-HTTP/HTTPS links during scheduling.
+
+When `domain_suffixes` is enabled, swap `seed_urls.txt` to URLs on hosts that satisfy the suffix rule; Wikipedia seeds plus a `.edu`-only filter will not crawl anything useful.
 
 ## Limitations
 

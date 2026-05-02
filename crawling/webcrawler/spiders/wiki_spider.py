@@ -2,7 +2,7 @@ import hashlib
 import re
 from datetime import datetime
 from pathlib import Path
-from urllib.parse import urldefrag, urlsplit, urlunsplit
+from urllib.parse import urldefrag, urlparse, urlsplit, urlunsplit
 
 import scrapy
 from scrapy.exceptions import CloseSpider
@@ -21,13 +21,42 @@ class Spider_Wiki_Scraper(scrapy.Spider):
     name = "wiki"
     allowed_domains = ["wikipedia.org"]
 
-    def __init__(self, max_pages=50, max_depth=1, *args, **kwargs):
+    def __init__(self, max_pages=50, max_depth=1, domain_suffixes="", *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.max_pages = int(max_pages)
         self.max_depth = int(max_depth)
+        self.domain_suffixes = self._parse_domain_suffixes(domain_suffixes)
         self.pages_crawled = 0
         self.visited_urls = set()
         self.scheduled_urls = set()
+        # Let Scrapy constrain hosts by default (.org wiki); widen when using TLD filtering.
+        if self.domain_suffixes:
+            self.allowed_domains = []
+
+    def _parse_domain_suffixes(self, raw):
+        if not raw or not str(raw).strip():
+            return []
+        normalized = []
+        for part in str(raw).split(","):
+            s = part.strip().lower()
+            if not s:
+                continue
+            if not s.startswith("."):
+                s = f".{s}"
+            normalized.append(s)
+        return normalized
+
+    def _hostname_allows_suffixes(self, url):
+        hostname = urlparse(url).hostname
+        if hostname is None:
+            return False
+        host = hostname.lower()
+        return any(host.endswith(suf) for suf in self.domain_suffixes)
+
+    def _url_allowed_domain_policy(self, url):
+        if not self.domain_suffixes:
+            return True
+        return self._hostname_allows_suffixes(url)
 
     def normalize_url(self, url):
         clean_url, _fragment = urldefrag(url)
@@ -52,6 +81,9 @@ class Spider_Wiki_Scraper(scrapy.Spider):
             normalized_seed = self.normalize_url(url)
             if normalized_seed in self.scheduled_urls:
                 continue
+            if not self._url_allowed_domain_policy(normalized_seed):
+                self.log(f"Skipping seed outside domain_suffixes filter: {normalized_seed}")
+                continue
             self.scheduled_urls.add(normalized_seed)
             yield scrapy.Request(url=url, callback=self.parse, meta={"depth": 0})
     
@@ -74,6 +106,9 @@ class Spider_Wiki_Scraper(scrapy.Spider):
             raise CloseSpider("max_pages_reached")
 
         normalized_current = self.normalize_url(response.url)
+        if self.domain_suffixes and not self._hostname_allows_suffixes(normalized_current):
+            self.log(f"Skipping response outside domain_suffixes policy: {normalized_current}")
+            return
         if normalized_current in self.visited_urls:
             self.log(f"Duplicate Page Found: {normalized_current}, skipping")
             return
@@ -99,6 +134,10 @@ class Spider_Wiki_Scraper(scrapy.Spider):
             normalized_link = self.normalize_url(link)
             if normalized_link in seen_links:
                 continue
+            if urlsplit(normalized_link).scheme not in ("http", "https"):
+                continue
+            if self.domain_suffixes and not self._hostname_allows_suffixes(normalized_link):
+                continue
             seen_links.add(normalized_link)
             normalized_links.append(normalized_link)
         page_item["outgoing_links"] = normalized_links
@@ -108,6 +147,10 @@ class Spider_Wiki_Scraper(scrapy.Spider):
         #     #add some logic for dedepublication 
         #     # looking in settings.py to change the Depth limit to do full test
             if depth < self.max_depth:
+                if urlsplit(link).scheme not in ("http", "https"):
+                    continue
+                if not self._url_allowed_domain_policy(link):
+                    continue
                 if link in self.visited_urls or link in self.scheduled_urls:
                     continue
                 self.scheduled_urls.add(link)
