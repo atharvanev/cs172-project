@@ -40,8 +40,9 @@ DOWNLOAD_DELAY = 1
 
 # Enable or disable spider middlewares
 # See https://docs.scrapy.org/en/latest/topics/spider-middleware.html
+# Subclasses Scrapy's BaseSpiderMiddleware (2.13+). Pick order vs SPIDER_MIDDLEWARES_BASE.
 #SPIDER_MIDDLEWARES = {
-#    "webcrawler.middlewares.WebcrawlerSpiderMiddleware": 543,
+#    "webcrawler.middlewares.WebcrawlerSpiderMiddleware": 550,
 #}
 
 # Enable or disable downloader middlewares
@@ -85,5 +86,6 @@ DOWNLOAD_DELAY = 1
 
 # Set settings whose default value is deprecated to a future-proof value
 FEED_EXPORT_ENCODING = "utf-8"
-DEPTH_LIMIT = 1
+# Depth cap comes from spider arg max_depth; 0 = no global Scrapy depth limit.
+DEPTH_LIMIT = 0
 
