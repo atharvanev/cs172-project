@@ -1,6 +1,6 @@
 # CS 172 Project - Web Crawler
 
-This repository contains a Scrapy-based HTML web crawler. It starts from a list of seed URLs, traverses hyperlinks up to a configurable hop depth, saves crawled pages to disk, and exports structured page metadata.
+This repository contains a Scrapy-based HTML web crawler (`wiki`). It reads seed URLs from a file, follows links up to a configurable hop depth, saves each crawled HTML response under a `pages/` directory, and can export structured fields to JSON (`-o …`).
 
 ## Team Members
 
@@ -13,35 +13,41 @@ This repository contains a Scrapy-based HTML web crawler. It starts from a list 
 ## Features
 
 - Seed-based crawling from `crawling/seed_urls.txt`.
-- Configurable crawl bounds with `max_pages` and `max_depth`.
-- Optional hostname suffix filtering with `domain_suffixes` (for example `.edu` or `.gov`).
-- Duplicate prevention using normalized URL tracking.
-- Polite crawling defaults (`robots.txt` support and request delay).
-- HTML page snapshot storage and JSON export of extracted fields.
+- Bounds from spider arguments `max_pages` and `max_depth`.
+- Duplicate reduction using normalized URLs plus `visited` / `scheduled` sets.
+- Optional hostname suffix filtering with `domain_suffixes` (e.g. `.edu`, `.gov`).
+- Polite defaults: obey `robots.txt`, delay between downloads, limited concurrency per domain.
+- Saves raw HTML snapshots to disk and emits JSON/XML/etc. feeds via Scrapy’s `-o` option.
 
-## Project Structure
+## Project layout
 
-- `crawling/webcrawler/spiders/wiki_spider.py`: main crawl logic.
-- `crawling/webcrawler/settings.py`: Scrapy configuration.
-- `crawling/seed_urls.txt`: crawl starting URLs.
-- `crawling/pages/`: saved HTML page snapshots.
+- `crawling/webcrawler/spiders/wiki_spider.py` — spider implementation.
+- `crawling/webcrawler/settings.py` — Scrapy settings (delay, concurrency, encoding, depth).
+- `crawling/seed_urls.txt` — one seed URL per line (blank lines skipped).
+- `crawling/pages/` — created at runtime relative to where you run `scrapy`; when you `cd crawling` first, snapshots land here (`crawling/pages/` from repo root).
 
 ## Setup
 
-From the repository root:
+From the repo root:
 
 ```bash
 bash setup.sh
 source venv/bin/activate
 ```
 
-## Seed URLs
+If `scrapy` is missing inside the venv (the repo’s script uses bare `pip` after creating the venv), install dependencies explicitly into the environment:
 
-Edit `crawling/seed_urls.txt` to change crawl starting points.
+```bash
+./venv/bin/pip install -r requirements.txt
+```
 
-## Run the Crawler
+## Seeds
 
-From the repository root:
+Edit `crawling/seed_urls.txt`. With `domain_suffixes` unset, seeds should be on **`*.wikipedia.org`** hosts so Scrapy’s default `allowed_domains` matches.
+
+## Running
+
+Always run Scrapy **from `crawling/`** so `seed_urls.txt` and the `pages/` folder resolve correctly.
 
 ```bash
 cd crawling
@@ -51,43 +57,49 @@ scrapy crawl wiki -a max_pages=100 -a max_depth=2 -o output.json
 scrapy crawl wiki -a domain_suffixes=.edu,.gov -a max_pages=50 -a max_depth=1 -o output.json
 ```
 
-Runtime arguments:
-- `max_pages`: maximum total pages to schedule/fetch before stopping (default: `50`)
-- `max_depth`: maximum hyperlink depth from seed URLs (default: `1`)
-- `domain_suffixes`: comma-separated hostname suffix filters like `.edu` or `.gov` (optional). When unset, the crawler uses Scrapy `allowed_domains` (`wikipedia.org` for this spider). When set, only `http/https` URLs whose hostnames end with one of the suffixes are scheduled, and outgoing links recorded in JSON follow the same filter.
+### Spider arguments
+
+- **`max_pages`** (default `50`): closes the crawl (`CloseSpider`) once this many **unique pages** have been accepted for scraping—after redirects, duplicates, and off-policy redirects are skipped, and after `duplicate` skips (those may still have been downloaded earlier). It is not a strict cap on downloader requests queued ahead of time.
+- **`max_depth`** (default `1`): seeds are depth `0`; each followed link increments depth. Scrapy global `DEPTH_LIMIT` is left at `0` so depth is controlled only by this argument.
+- **`domain_suffixes`** (optional): comma-separated suffix list (e.g. `.edu,gov`). Values are normalized to start with `.`. When **empty**, the spider keeps Scrapy restriction to `wikipedia.org`. When **set**, `allowed_domains` is cleared so cross-domain queues are allowed, and only `http/https` URLs whose hostnames end with a listed suffix are kept (seeds, link discovery, redirects to a final URL, and exported `outgoing_links`).
+
+### Normalization used for URLs
+
+- Drops URL fragments (`#…`).
+- Lowercases scheme and host.
+- Strips trailing `/` from paths unless the path is `/`.
+- Preserves query strings as-is after normalization.
 
 ## Output
 
-- Crawled HTML files are saved to `crawling/pages/`.
-- Structured crawl results are written to `output.json` when using `-o output.json`.
+### HTML snapshots
 
-Example output record:
+Each saved page is stored as **`Page-{slug}-{16-hex-hash}.html`**, where `{slug}` comes from the last path segment and `{hash}` is derived from the normalized URL so different URLs do not collide on disk.
+
+### JSON (or other feed) items
+
+Exported records include whatever `WebcrawlerItem` defines. Example shape:
 
 ```json
 {
-  "url": "https://example.edu/page.html",
-  "title": "Example Page",
-  "body": "stripped text content...",
-  "crawled_at": "2025-04-28T10:30:00",
-  "depth": 2,
+  "url": "https://en.wikipedia.org/wiki/Example",
+  "title": "Example - Wikipedia",
+  "body": "<!DOCTYPE html>…",
+  "crawled_at": "2026-05-02T15:00:00",
+  "depth": 0,
   "outgoing_links": [
-    "https://example.edu/other.html"
+    "https://en.wikipedia.org/wiki/Other_page"
   ]
 }
 ```
 
-## Current Crawler Behavior
+Notes:
 
-- Obeys `robots.txt`.
-- Uses polite crawl rate (`DOWNLOAD_DELAY = 1`, `CONCURRENT_REQUESTS_PER_DOMAIN = 1`).
-- Deduplicates crawls using normalized URLs.
-- Skips non-HTTP/HTTPS links during scheduling.
-
-When `domain_suffixes` is enabled, swap `seed_urls.txt` to URLs on hosts that satisfy the suffix rule; Wikipedia seeds plus a `.edu`-only filter will not crawl anything useful.
+- **`url`** is the normalized URL stored in items.
+- **`body`** is the full HTML/text body from the HTTP response (`response.text`), not plain stripped text.
 
 ## Limitations
 
-- JavaScript-heavy pages may require a headless browser for full rendering.
-- Crawl coverage depends on seed URL selection.
-- Domain policies and robots rules can reduce reachable pages.
-
+- Heavy JavaScript pages are not rendered in a browser.
+- Crawl breadth depends heavily on seeds and `robots.txt`.
+- Duplicate URL detection avoids re-processing the same normalized URL **in this spider**, but many similar URLs still differ before normalization.
