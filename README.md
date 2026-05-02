@@ -1,45 +1,88 @@
-# CS 172 Project 
-CS 172 - Project: Web Search Engine 
+# CS 172 Project - Web Crawler
 
-Part A (Option 1: Web): 
+This repository contains a Scrapy-based HTML web crawler. It starts from a list of seed URLs, traverses hyperlinks up to a configurable hop depth, saves crawled pages to disk, and exports structured page metadata.
 
-Create a web crawler for HTML pages that parses and analyzes a given seed URL for the URL, title, body, outgoing links, and number of hops to get to the link. This information will then be stored in a json format within one file with the crawled pages stored within a folder. We'll be utilizing tools such as Beautiful Soup and Scrapy to help with breaking down HTML and extracting structured data. 
+## Team Members
 
-Example of possible output: 
+- Atharva Nevasekar
+- Nikhil Rao
+- Austin Le
+- David Lee
+- Brandon Sun
+
+## Features
+
+- Seed-based crawling from `crawling/seed_urls.txt`.
+- Configurable crawl bounds with `max_pages` and `max_depth`.
+- Duplicate prevention using normalized URL tracking.
+- Polite crawling defaults (`robots.txt` support and request delay).
+- HTML page snapshot storage and JSON export of extracted fields.
+
+## Project Structure
+
+- `crawling/webcrawler/spiders/wiki_spider.py`: main crawl logic.
+- `crawling/webcrawler/settings.py`: Scrapy configuration.
+- `crawling/seed_urls.txt`: crawl starting URLs.
+- `crawling/pages/`: saved HTML page snapshots.
+
+## Setup
+
+From the repository root:
+
+```bash
+bash setup.sh
+source venv/bin/activate
 ```
-{ "url": "https://example.edu/page.html", 
-    "title": "Example Page", 
-    "body": "stripped text content...", 
-    "crawled_at": "2025-04-28T10:30:00", 
-    "depth": 2, 
-    "outgoing_links": ["https://example.edu/other.html", "..."] 
-} 
-```
 
+## Seed URLs
 
-Group Members
+Edit `crawling/seed_urls.txt` to change crawl starting points.
 
-* Atharva Nevasekar
-* Nikhil Rao
-* Austin Le
-* David Lee
-* Brandon Sun
+## Run the Crawler
 
-To begin, start a venv and download needed dependencies with 
-```
-bash setup.sh 
-source venv/bin/activate 
-```
-to activate the environment. 
-All seed urls can be found within seed_urls.txt (feel free to add more). 
-You can also run the web crawler in crawling directory with command: 
-```scrapy crawl "name_of_crawler"```
+From the repository root:
 
-Use to run the crawler
-
-```
+```bash
 cd crawling
 scrapy crawl wiki
 scrapy crawl wiki -o output.json
+scrapy crawl wiki -a max_pages=100 -a max_depth=2 -o output.json
 ```
+
+Runtime arguments:
+- `max_pages`: maximum total pages to schedule/fetch before stopping (default: `50`)
+- `max_depth`: maximum hyperlink depth from seed URLs (default: `1`)
+
+## Output
+
+- Crawled HTML files are saved to `crawling/pages/`.
+- Structured crawl results are written to `output.json` when using `-o output.json`.
+
+Example output record:
+
+```json
+{
+  "url": "https://example.edu/page.html",
+  "title": "Example Page",
+  "body": "stripped text content...",
+  "crawled_at": "2025-04-28T10:30:00",
+  "depth": 2,
+  "outgoing_links": [
+    "https://example.edu/other.html"
+  ]
+}
+```
+
+## Current Crawler Behavior
+
+- Obeys `robots.txt`.
+- Uses polite crawl rate (`DOWNLOAD_DELAY = 1`, `CONCURRENT_REQUESTS_PER_DOMAIN = 1`).
+- Deduplicates crawls using normalized URLs.
+- Skips non-HTTP/HTTPS links during scheduling.
+
+## Limitations
+
+- JavaScript-heavy pages may require a headless browser for full rendering.
+- Crawl coverage depends on seed URL selection.
+- Domain policies and robots rules can reduce reachable pages.
 
