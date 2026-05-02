@@ -85,5 +85,6 @@ DOWNLOAD_DELAY = 1
 
 # Set settings whose default value is deprecated to a future-proof value
 FEED_EXPORT_ENCODING = "utf-8"
-DEPTH_LIMIT = 1
+# Spider argument `max_depth` controls depth at runtime.
+DEPTH_LIMIT = 0
 

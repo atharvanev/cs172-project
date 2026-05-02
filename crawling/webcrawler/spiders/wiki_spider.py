@@ -1,64 +1,128 @@
-from pathlib import Path
-from webcrawler.items import WebcrawlerItem
-import scrapy
+import hashlib
+import re
 from datetime import datetime
+from pathlib import Path
+from urllib.parse import urldefrag, urlparse, urlsplit, urlunsplit
+
+import scrapy
+from scrapy.exceptions import CloseSpider
+
+from webcrawler.items import WebcrawlerItem
 
 folder = Path("pages")
 folder.mkdir(parents=True, exist_ok=True)
 
-def load_seed_urls(filepath):
-    with open(filepath, "r") as f:
-        return [line.strip() for line in f if line.strip()]
+
+def _parse_domain_suffixes(raw):
+    if not raw or not str(raw).strip():
+        return []
+    return [
+        (s if s.startswith(".") else f".{s}")
+        for p in str(raw).split(",")
+        if (s := p.strip().lower())
+    ]
 
 
 class Spider_Wiki_Scraper(scrapy.Spider):
     name = "wiki"
     allowed_domains = ["wikipedia.org"]
 
-    #Loop through all seed_urls
-    async def start(self):
-        seed_urls = load_seed_urls("seed_urls.txt")
-        self.all_ids = []
-        for url in seed_urls:
-            yield scrapy.Request(url=url, callback=self.parse, meta={"depth": 0})
-    
-    def download_page(self, response):
-        page = response.url.split("/")[-1]
-        filename = f"Page-{page}.html"
-        filepath = folder/filename
-        Path(filepath).write_bytes(response.body)
-        self.log(f"Saved file {filename}")
+    def __init__(self, max_pages=50, max_depth=1, domain_suffixes="", *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.max_pages = int(max_pages)
+        self.max_depth = int(max_depth)
+        self.domain_suffixes = _parse_domain_suffixes(domain_suffixes)
+        self.pages_crawled = 0
+        self.visited_urls = set()
+        self.scheduled_urls = set()
+        if self.domain_suffixes:
+            self.allowed_domains = []
 
-    def sanity_check_dupe(self, page_id):
-        if page_id in self.all_ids:
-            return True
-        return False
-    
-    #Get HTML of pages and parse them
-    def parse(self, response):
-        page_id = response.css('meta[name="pageId"]::attr(content)').get()
-        if self.sanity_check_dupe(page_id):
-            self.log(f"Duplicate Page Found: {page_id}, Do not add to list")
+    def _suffix_ok(self, url):
+        return not self.domain_suffixes or (
+            (h := urlparse(url).hostname) is not None
+            and any(h.lower().endswith(s) for s in self.domain_suffixes)
+        )
+
+    def normalize_url(self, url):
+        clean, _ = urldefrag(url)
+        p = urlsplit(clean)
+        path = (p.path or "/").rstrip("/") or "/"
+        return urlunsplit((p.scheme.lower(), p.netloc.lower(), path, p.query, ""))
+
+    def _outlinks(self, response):
+        seen, acc = set(), []
+        for raw in response.xpath("//a/@href").getall():
+            if raw.startswith("#"):
+                continue
+            n = self.normalize_url(response.urljoin(raw))
+            if (
+                n in seen
+                or urlsplit(n).scheme not in ("http", "https")
+                or not self._suffix_ok(n)
+            ):
+                continue
+            seen.add(n)
+            acc.append(n)
+        return acc
+
+    def _follow(self, links, depth):
+        if depth >= self.max_depth:
             return
-        
-        depth = response.meta.get("depth", 0) #default fallback to 0 if depth is not set
-        page_item = WebcrawlerItem()
+        for link in links:
+            if link in self.visited_urls or link in self.scheduled_urls:
+                continue
+            self.scheduled_urls.add(link)
+            yield scrapy.Request(url=link, callback=self.parse, meta={"depth": depth + 1})
 
-        page_item["url"] = response.url
-        page_item["title"] = response.xpath("//title/text()").get()
-        page_item["body"] = response.text
-        page_item["crawled_at"] = datetime.now().isoformat()
-        page_item["depth"] = depth
-        raw_links = response.xpath("//a/@href").getall()
-        absolute_links = [response.urljoin(l) for l in raw_links if not l.startswith("#")]
-        page_item["outgoing_links"] = absolute_links
+    async def start(self):
+        with open("seed_urls.txt") as f:
+            for line in f:
+                url = line.strip()
+                if not url:
+                    continue
+                n = self.normalize_url(url)
+                if n in self.scheduled_urls:
+                    continue
+                if not self._suffix_ok(n):
+                    if self.domain_suffixes:
+                        self.logger.info("Skipping seed outside domain_suffixes: %s", n)
+                    continue
+                self.scheduled_urls.add(n)
+                yield scrapy.Request(url=url, callback=self.parse, meta={"depth": 0})
 
-        #based on my knolwedge, the Scrappy has its own Queue system and it will handle the scheduling of requests. So we just need to yield new requests and Scrapy will take care of the rest.
-        for link in absolute_links:
-        #     #add some logic for dedepublication 
-        #     # looking in settings.py to change the Depth limit to do full test
-            yield scrapy.Request(url=link, callback=self.parse, meta={"depth": depth + 1}) #increase depth for outgoing links and puts it in the Queue
+    def download_page(self, response):
+        n = self.normalize_url(response.url)
+        dig = hashlib.sha256(n.encode()).hexdigest()[:16]
+        last = urlsplit(n).path.strip("/").split("/")[-1] or "index"
+        slug = (re.sub(r"[^\w.\-]", "_", last, flags=re.UNICODE).strip("_") or "page")[:120]
+        dest = folder / f"Page-{slug}-{dig}.html"
+        dest.write_bytes(response.body)
+        self.log(f"Saved file {dest.name}")
 
-        # add a download funciton here to save the page content to disk
+    def parse(self, response):
+        if self.pages_crawled >= self.max_pages:
+            raise CloseSpider("max_pages_reached")
+        cur = self.normalize_url(response.url)
+        if not self._suffix_ok(cur):
+            self.logger.info("Skipping response outside domain_suffixes: %s", cur)
+            return
+        if cur in self.visited_urls:
+            self.log(f"Duplicate Page Found: {cur}, skipping")
+            return
+        depth = response.meta.get("depth", 0)
+        if depth > self.max_depth:
+            return
+        self.visited_urls.add(cur)
+        self.pages_crawled += 1
+        out = self._outlinks(response)
+        item = WebcrawlerItem()
+        item["url"], item["title"], item["body"] = cur, response.xpath("//title/text()").get(), response.text
+        item["crawled_at"], item["depth"], item["outgoing_links"] = (
+            datetime.now().isoformat(),
+            depth,
+            out,
+        )
+        yield from self._follow(out, depth)
         self.download_page(response)
-        yield page_item
+        yield item
