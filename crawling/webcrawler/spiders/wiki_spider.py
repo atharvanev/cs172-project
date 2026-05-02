@@ -1,9 +1,13 @@
+import hashlib
+import re
+from datetime import datetime
 from pathlib import Path
 from urllib.parse import urldefrag, urlsplit, urlunsplit
-from webcrawler.items import WebcrawlerItem
+
 import scrapy
-from datetime import datetime
 from scrapy.exceptions import CloseSpider
+
+from webcrawler.items import WebcrawlerItem
 
 folder = Path("pages")
 folder.mkdir(parents=True, exist_ok=True)
@@ -52,10 +56,16 @@ class Spider_Wiki_Scraper(scrapy.Spider):
             yield scrapy.Request(url=url, callback=self.parse, meta={"depth": 0})
     
     def download_page(self, response):
-        page = response.url.split("/")[-1]
-        filename = f"Page-{page}.html"
-        filepath = folder/filename
-        Path(filepath).write_bytes(response.body)
+        normalized = self.normalize_url(response.url)
+        digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:16]
+        last_segment = (urlsplit(normalized).path.strip("/").split("/")[-1] or "index")
+        slug = re.sub(r"[^\w.\-]", "_", last_segment, flags=re.UNICODE).strip("_")
+        if not slug:
+            slug = "page"
+        slug = slug[:120]
+        filename = f"Page-{slug}-{digest}.html"
+        filepath = folder / filename
+        filepath.write_bytes(response.body)
         self.log(f"Saved file {filename}")
 
     #Get HTML of pages and parse them
