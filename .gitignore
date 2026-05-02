@@ -1,3 +1,6 @@
 __pycache__
 venv
 .vscode
+
+# crawler output (regenerated on each run)
+crawling/pages/
