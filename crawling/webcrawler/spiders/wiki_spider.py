@@ -12,6 +12,7 @@ from webcrawler.items import WebcrawlerItem
 folder = Path("pages")
 folder.mkdir(parents=True, exist_ok=True)
 
+
 def load_seed_urls(filepath):
     with open(filepath, "r") as f:
         return [line.strip() for line in f if line.strip()]
@@ -29,133 +30,123 @@ class Spider_Wiki_Scraper(scrapy.Spider):
         self.pages_crawled = 0
         self.visited_urls = set()
         self.scheduled_urls = set()
-        # Let Scrapy constrain hosts by default (.org wiki); widen when using TLD filtering.
         if self.domain_suffixes:
             self.allowed_domains = []
 
-    def _parse_domain_suffixes(self, raw):
+    @staticmethod
+    def _parse_domain_suffixes(raw):
         if not raw or not str(raw).strip():
             return []
-        normalized = []
+        out = []
         for part in str(raw).split(","):
             s = part.strip().lower()
             if not s:
                 continue
-            if not s.startswith("."):
-                s = f".{s}"
-            normalized.append(s)
-        return normalized
+            out.append(s if s.startswith(".") else f".{s}")
+        return out
 
-    def _hostname_allows_suffixes(self, url):
+    def _host_matches_suffixes(self, url):
         hostname = urlparse(url).hostname
         if hostname is None:
             return False
-        host = hostname.lower()
-        return any(host.endswith(suf) for suf in self.domain_suffixes)
+        h = hostname.lower()
+        return any(h.endswith(suf) for suf in self.domain_suffixes)
 
-    def _url_allowed_domain_policy(self, url):
-        if not self.domain_suffixes:
-            return True
-        return self._hostname_allows_suffixes(url)
+    def _suffix_policy_ok(self, url):
+        return not self.domain_suffixes or self._host_matches_suffixes(url)
+
+    def _followable_http(self, normalized):
+        return urlsplit(normalized).scheme in ("http", "https") and self._suffix_policy_ok(
+            normalized
+        )
 
     def normalize_url(self, url):
-        clean_url, _fragment = urldefrag(url)
+        clean_url, _ = urldefrag(url)
         parts = urlsplit(clean_url)
-        normalized_path = parts.path or "/"
-        if normalized_path != "/" and normalized_path.endswith("/"):
-            normalized_path = normalized_path.rstrip("/")
+        path = parts.path or "/"
+        if path != "/" and path.endswith("/"):
+            path = path.rstrip("/")
         return urlunsplit(
             (
                 parts.scheme.lower(),
                 parts.netloc.lower(),
-                normalized_path,
+                path,
                 parts.query,
                 "",
             )
         )
 
-    #Loop through all seed_urls
+    def _outlinks(self, response):
+        seen = set()
+        out = []
+        for raw in response.xpath("//a/@href").getall():
+            if raw.startswith("#"):
+                continue
+            n = self.normalize_url(response.urljoin(raw))
+            if n in seen or not self._followable_http(n):
+                continue
+            seen.add(n)
+            out.append(n)
+        return out
+
+    def _enqueue_follows(self, links, depth):
+        if depth >= self.max_depth:
+            return
+        for link in links:
+            if link in self.visited_urls or link in self.scheduled_urls:
+                continue
+            self.scheduled_urls.add(link)
+            yield scrapy.Request(url=link, callback=self.parse, meta={"depth": depth + 1})
+
     async def start(self):
-        seed_urls = load_seed_urls("seed_urls.txt")
-        for url in seed_urls:
-            normalized_seed = self.normalize_url(url)
-            if normalized_seed in self.scheduled_urls:
+        for url in load_seed_urls("seed_urls.txt"):
+            n = self.normalize_url(url)
+            if n in self.scheduled_urls:
                 continue
-            if not self._url_allowed_domain_policy(normalized_seed):
-                self.log(f"Skipping seed outside domain_suffixes filter: {normalized_seed}")
+            if not self._suffix_policy_ok(n):
+                if self.domain_suffixes:
+                    self.logger.info("Skipping seed outside domain_suffixes: %s", n)
                 continue
-            self.scheduled_urls.add(normalized_seed)
+            self.scheduled_urls.add(n)
             yield scrapy.Request(url=url, callback=self.parse, meta={"depth": 0})
-    
+
     def download_page(self, response):
         normalized = self.normalize_url(response.url)
         digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:16]
-        last_segment = (urlsplit(normalized).path.strip("/").split("/")[-1] or "index")
-        slug = re.sub(r"[^\w.\-]", "_", last_segment, flags=re.UNICODE).strip("_")
-        if not slug:
-            slug = "page"
-        slug = slug[:120]
+        last = urlsplit(normalized).path.strip("/").split("/")[-1] or "index"
+        slug = (re.sub(r"[^\w.\-]", "_", last, flags=re.UNICODE).strip("_") or "page")[:120]
         filename = f"Page-{slug}-{digest}.html"
-        filepath = folder / filename
-        filepath.write_bytes(response.body)
+        path = folder / filename
+        path.write_bytes(response.body)
         self.log(f"Saved file {filename}")
 
-    #Get HTML of pages and parse them
     def parse(self, response):
         if self.pages_crawled >= self.max_pages:
             raise CloseSpider("max_pages_reached")
 
-        normalized_current = self.normalize_url(response.url)
-        if self.domain_suffixes and not self._hostname_allows_suffixes(normalized_current):
-            self.log(f"Skipping response outside domain_suffixes policy: {normalized_current}")
+        current = self.normalize_url(response.url)
+        if not self._suffix_policy_ok(current):
+            self.logger.info("Skipping response outside domain_suffixes: %s", current)
             return
-        if normalized_current in self.visited_urls:
-            self.log(f"Duplicate Page Found: {normalized_current}, skipping")
+        if current in self.visited_urls:
+            self.log(f"Duplicate Page Found: {current}, skipping")
             return
 
-        depth = response.meta.get("depth", 0) #default fallback to 0 if depth is not set
+        depth = response.meta.get("depth", 0)
         if depth > self.max_depth:
             return
 
-        self.visited_urls.add(normalized_current)
+        self.visited_urls.add(current)
         self.pages_crawled += 1
-        page_item = WebcrawlerItem()
 
-        page_item["url"] = normalized_current
-        page_item["title"] = response.xpath("//title/text()").get()
-        page_item["body"] = response.text
-        page_item["crawled_at"] = datetime.now().isoformat()
-        page_item["depth"] = depth
-        raw_links = response.xpath("//a/@href").getall()
-        absolute_links = [response.urljoin(link) for link in raw_links if not link.startswith("#")]
-        normalized_links = []
-        seen_links = set()
-        for link in absolute_links:
-            normalized_link = self.normalize_url(link)
-            if normalized_link in seen_links:
-                continue
-            if urlsplit(normalized_link).scheme not in ("http", "https"):
-                continue
-            if self.domain_suffixes and not self._hostname_allows_suffixes(normalized_link):
-                continue
-            seen_links.add(normalized_link)
-            normalized_links.append(normalized_link)
-        page_item["outgoing_links"] = normalized_links
-
-        #based on my knolwedge, the Scrappy has its own Queue system and it will handle the scheduling of requests. So we just need to yield new requests and Scrapy will take care of the rest.
-        for link in normalized_links:
-        #     #add some logic for dedepublication 
-        #     # looking in settings.py to change the Depth limit to do full test
-            if depth < self.max_depth:
-                if urlsplit(link).scheme not in ("http", "https"):
-                    continue
-                if not self._url_allowed_domain_policy(link):
-                    continue
-                if link in self.visited_urls or link in self.scheduled_urls:
-                    continue
-                self.scheduled_urls.add(link)
-                yield scrapy.Request(url=link, callback=self.parse, meta={"depth": depth + 1}) #increase depth for outgoing links and puts it in the Queue
-
-        # add a download funciton here to save the page content to disk
+        outgoing = self._outlinks(response)
+        item = WebcrawlerItem()
+        item["url"] = current
+        item["title"] = response.xpath("//title/text()").get()
+        item["body"] = response.text
+        item["crawled_at"] = datetime.now().isoformat()
+        item["depth"] = depth
+        item["outgoing_links"] = outgoing
+        yield from self._enqueue_follows(outgoing, depth)
         self.download_page(response)
-        yield page_item
+        yield item
