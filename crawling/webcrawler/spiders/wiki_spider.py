@@ -13,7 +13,7 @@ def load_seed_urls(filepath):
 
 class Spider_Wiki_Scraper(scrapy.Spider):
     name = "wiki"
-    allowed_domains = ["wikipedia.org"]
+    #allowed_domains = ["wikipedia.org"]
 
     #Loop through all seed_urls
     async def start(self):
@@ -52,10 +52,12 @@ class Spider_Wiki_Scraper(scrapy.Spider):
             return
 
         page_id = response.css('meta[name="pageId"]::attr(content)').get()
+        if page_id is None:
+            page_id = response.url
         if self.sanity_check_dupe(page_id):
             self.log(f"Duplicate Page Found: {page_id}, Do not add to list")
             return
-        
+        self.all_ids.add(page_id)
         depth = response.meta.get("depth", 0) #default fallback to 0 if depth is not set
         page_item = WebcrawlerItem()
 
@@ -64,15 +66,15 @@ class Spider_Wiki_Scraper(scrapy.Spider):
         page_item["body"] = response.text
         page_item["crawled_at"] = datetime.now().isoformat()
         page_item["depth"] = depth
+
+        #Domain Filtering and Link Extraction
         raw_links = response.xpath("//a/@href").getall()
         absolute_links = [response.urljoin(l) for l in raw_links if not l.startswith("#")]
-        page_item["outgoing_links"] = absolute_links
+        crawl_links = [l for l in absolute_links if l.startswith("https://en.wikipedia.org/")]
+        page_item["outgoing_links"] = crawl_links
 
-        #based on my knolwedge, the Scrappy has its own Queue system and it will handle the scheduling of requests. So we just need to yield new requests and Scrapy will take care of the rest.
-        for link in absolute_links:
-        #     #add some logic for dedepublication 
-        #     # looking in settings.py to change the Depth limit to do full test
-            yield scrapy.Request(url=link, callback=self.parse, meta={"depth": depth + 1}) #increase depth for outgoing links and puts it in the Queue
+        for link in crawl_links:
+            yield scrapy.Request(url=link, callback=self.parse, meta={"depth": depth + 1})
 
         # add a download funciton here to save the page content to disk
         self.download_page(response)
