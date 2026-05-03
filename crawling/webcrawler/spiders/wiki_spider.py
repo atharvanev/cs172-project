@@ -1,10 +1,31 @@
 from pathlib import Path
 from webcrawler.items import WebcrawlerItem
 import scrapy
+from scrapy.exceptions import CloseSpider
 from datetime import datetime
 
 folder = Path("pages")
 folder.mkdir(parents=True, exist_ok=True)
+
+BLOCKED_NAMESPACES = [
+    "Special:", "Wikipedia:", "Help:", "Talk:", "User:",
+    "User_talk:", "Wikipedia_talk:", "File:", "File_talk:",
+    "Category:", "Category_talk:", "Portal:", "Draft:",
+    "Template:", "Template_talk:", "Module:", "MOS:"
+]
+
+def is_valid_wiki_article(url):
+    if "en.wikipedia.org" not in url:
+        return False
+    if "/wiki/" not in url:
+        return False
+    path = url.split("/wiki/")[-1]
+    if not path or path.startswith("#"):
+        return False
+    for ns in BLOCKED_NAMESPACES:
+        if path.startswith(ns):
+            return False
+    return True
 
 def load_seed_urls(filepath):
     with open(filepath, "r") as f:
@@ -13,12 +34,12 @@ def load_seed_urls(filepath):
 
 class Spider_Wiki_Scraper(scrapy.Spider):
     name = "wiki"
-    #allowed_domains = ["wikipedia.org"]
 
     #Loop through all seed_urls
     async def start(self):
         seed_urls = load_seed_urls("seed_urls.txt")
         self.all_ids = set()
+        self._closing = False
         for url in seed_urls:
             yield scrapy.Request(url=url, callback=self.parse, meta={"depth": 0})
     
@@ -32,6 +53,7 @@ class Spider_Wiki_Scraper(scrapy.Spider):
             self.log(f"Storage limit reached: {used:.1f} MB / {threshold} MB. Stopping crawler.")
             return True
         return False
+
 
     def download_page(self, response):
         page = response.url.split("/")[-1]
@@ -47,9 +69,11 @@ class Spider_Wiki_Scraper(scrapy.Spider):
 
     #Get HTML of pages and parse them
     def parse(self, response):
-        if self._threshold_reached():
-            self.crawler.engine.close_spider(self, "storage_threshold_reached")
+        if self._closing:
             return
+        if self._threshold_reached():
+            self._closing = True
+            raise CloseSpider("storage_threshold_reached")
 
         page_id = response.css('meta[name="pageId"]::attr(content)').get()
         if page_id is None:
@@ -70,7 +94,7 @@ class Spider_Wiki_Scraper(scrapy.Spider):
         #Domain Filtering and Link Extraction
         raw_links = response.xpath("//a/@href").getall()
         absolute_links = [response.urljoin(l) for l in raw_links if not l.startswith("#")]
-        crawl_links = [l for l in absolute_links if l.startswith("https://en.wikipedia.org/")]
+        crawl_links = [l for l in absolute_links if is_valid_wiki_article(l)]
         page_item["outgoing_links"] = crawl_links
 
         for link in crawl_links:
