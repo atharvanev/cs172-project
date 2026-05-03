@@ -86,6 +86,6 @@ DOWNLOAD_DELAY = 1
 
 # Set settings whose default value is deprecated to a future-proof value
 FEED_EXPORT_ENCODING = "utf-8"
-# Depth cap comes from spider arg max_depth; 0 = no global Scrapy depth limit.
-DEPTH_LIMIT = 0
-
+DEPTH_LIMIT = 1
+STORAGE_THRESHOLD_MB = 5 # Stop crawling after pages/ exceeds this many MB
+DOWNLOAD_DELAY = 1.5
