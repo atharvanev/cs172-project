@@ -35,8 +35,7 @@ All seed urls can be found within seed_urls.txt (feel free to add more).
 You can also run the web crawler in crawling directory with command: 
 ```scrapy crawl "name_of_crawler"```
 
-Use to run the crawler
-
+Use to run the crawler updated `DEPTH` and the `STORAGE` in settings.py before running to the proper settings
 ```
 cd crawling
 scrapy crawl wiki
