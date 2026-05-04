@@ -2,4 +2,4 @@ __pycache__
 venv
 .vscode
 pages/
-output.json
+crawling/output.json
