@@ -89,3 +89,8 @@ FEED_EXPORT_ENCODING = "utf-8"
 DEPTH_LIMIT = 1
 STORAGE_THRESHOLD_MB = 5 # Stop crawling after pages/ exceeds this many MB
 DOWNLOAD_DELAY = 1.5
+
+# BFS: process shallower pages first, use FIFO queues so same-depth pages are ordered correctly
+DEPTH_PRIORITY = 1
+SCHEDULER_DISK_QUEUE = "scrapy.squeues.PickleFifoDiskQueue"
+SCHEDULER_MEMORY_QUEUE = "scrapy.squeues.FifoMemoryQueue"
