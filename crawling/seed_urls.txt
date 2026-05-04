@@ -3,4 +3,3 @@ https://en.wikipedia.org/wiki/Machine_learning
 https://en.wikipedia.org/wiki/Science_fiction
 https://en.wikipedia.org/wiki/Actor
 https://en.wikipedia.org/wiki/California
-https://en.wikipedia.org/wiki/Actor 
