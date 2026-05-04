@@ -1,45 +1,71 @@
-# CS 172 Project 
-CS 172 - Project: Web Search Engine 
+# CS 172 Project: Web Search Engine
 
-Part A (Option 1: Web): 
+This repo is for the CS 172 course project. Part A (web option) is a Wikipedia crawler built with Scrapy. It walks English Wikipedia articles starting from seed URLs, records each page’s URL, title, body text, crawl time, depth, and outgoing links, and writes structured data to JSON. Raw HTML snapshots also land under a `pages` folder while the crawl runs.
 
-Create a web crawler for HTML pages that parses and analyzes a given seed URL for the URL, title, body, outgoing links, and number of hops to get to the link. This information will then be stored in a json format within one file with the crawled pages stored within a folder. We'll be utilizing tools such as Beautiful Soup and Scrapy to help with breaking down HTML and extracting structured data. 
+## Team
 
-Example of possible output: 
+- Atharva Nevasekar
+- Nikhil Rao
+- Austin Le
+- David Lee
+- Brandon Sun
+
+## What gets stored
+
+Each crawled page is shaped roughly like this:
+
+```json
+{
+  "url": "https://example.edu/page.html",
+  "title": "Example Page",
+  "body": "stripped text content...",
+  "crawled_at": "2025-04-28T10:30:00",
+  "depth": 2,
+  "outgoing_links": ["https://example.edu/other.html", "..."]
+}
 ```
-{ "url": "https://example.edu/page.html", 
-    "title": "Example Page", 
-    "body": "stripped text content...", 
-    "crawled_at": "2025-04-28T10:30:00", 
-    "depth": 2, 
-    "outgoing_links": ["https://example.edu/other.html", "..."] 
-} 
+
+Paths worth knowing:
+
+- **Seed list:** `crawling/seed_urls.txt` (one URL per line; add more anytime)
+- **Feed export:** `crawling/output.json` when you use `-o output.json`
+- **Saved HTML:** `crawling/pages/` (created by the wiki spider)
+
+## Quick start
+
+From the repo root:
+
+```bash
+./run_wiki_crawler.sh
 ```
 
+That creates `venv` if it is missing, installs from `requirements.txt`, then runs `scrapy crawl wiki -o output.json` inside `crawling/`.
 
-Group Members
+If you already have `venv` and want to run Scrapy yourself (different flags or output path):
 
-* Atharva Nevasekar
-* Nikhil Rao
-* Austin Le
-* David Lee
-* Brandon Sun
-
-To begin, start a venv and download needed dependencies with 
-```
-bash setup.sh 
-source venv/bin/activate 
-```
-to activate the environment. 
-All seed urls can be found within seed_urls.txt (feel free to add more). 
-You can also run the web crawler in crawling directory with command: 
-```scrapy crawl "name_of_crawler"```
-
-Use to run the crawler update `DEPTH` and the `STORAGE` in crawling/webcrawler/settings.py before running 
-<img width="683" height="40" alt="image" src="https://github.com/user-attachments/assets/a2653e5c-e441-4f69-a9dd-8be70f796ecc" />
-
-```
+```bash
+source venv/bin/activate
 cd crawling
 scrapy crawl wiki -o output.json
 ```
 
+## Tune the crawl
+
+Before a long run, open `crawling/webcrawler/settings.py` and adjust:
+
+- **`DEPTH_LIMIT`** how many link hops away from a seed URL the spider may go
+- **`STORAGE_THRESHOLD_MB`** soft cap on disk used by the `pages` folder; the spider stops when usage crosses this
+
+Other useful knobs live in the same file (for example `DOWNLOAD_DELAY` and `CONCURRENT_REQUESTS_PER_DOMAIN`) if you want to be gentler on Wikipedia’s servers.
+
+## Repo layout
+
+| Path | Role |
+|------|------|
+| `requirements.txt` | Python deps (Scrapy, Beautiful Soup) |
+| `run_wiki_crawler.sh` | Creates `venv` if needed, installs deps, runs wiki crawl to `output.json` |
+| `crawling/scrapy.cfg` | Scrapy project config |
+| `crawling/webcrawler/` | Settings, items, pipelines, middlewares |
+| `crawling/webcrawler/spiders/wiki_spider.py` | Wikipedia spider (`name = wiki`) |
+
+The spider only follows normal article URLs on `en.wikipedia.org` and skips namespaces like `Special:`, `Talk:`, and `Category:`.
