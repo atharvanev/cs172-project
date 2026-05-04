@@ -1,4 +1,5 @@
 from pathlib import Path
+from urllib.parse import urlparse
 from webcrawler.items import WebcrawlerItem
 import scrapy
 from scrapy.exceptions import CloseSpider
@@ -15,11 +16,14 @@ BLOCKED_NAMESPACES = [
 ]
 
 def is_valid_wiki_article(url):
-    if "en.wikipedia.org" not in url:
+    parsed = urlparse(url)
+    host = parsed.netloc.lower()
+
+    if host != "en.wikipedia.org":
         return False
-    if "/wiki/" not in url:
+    if not parsed.path.startswith("/wiki/"):
         return False
-    path = url.split("/wiki/")[-1]
+    path = parsed.path.split("/wiki/", 1)[-1]
     if not path or path.startswith("#"):
         return False
     for ns in BLOCKED_NAMESPACES:
@@ -41,7 +45,10 @@ class Spider_Wiki_Scraper(scrapy.Spider):
         self.all_ids = set()
         self._closing = False
         for url in seed_urls:
-            yield scrapy.Request(url=url, callback=self.parse, meta={"depth": 0})
+            if is_valid_wiki_article(url):
+                yield scrapy.Request(url=url, callback=self.parse, meta={"depth": 0})
+            else:
+                self.log(f"Skipping non-Wikipedia or invalid seed URL: {url}")
     
     def _pages_storage_mb(self):
         return sum(f.stat().st_size for f in folder.rglob("*") if f.is_file()) / (1024 * 1024)
