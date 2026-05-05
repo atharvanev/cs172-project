@@ -5,3 +5,4 @@ pages/
 output.json
 crawling/output.json
 *.json
+.DS_Store
