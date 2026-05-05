@@ -82,6 +82,14 @@ class Spider_Wiki_Scraper(scrapy.Spider):
             self._closing = True
             raise CloseSpider("storage_threshold_reached")
 
+        if response.status != 200:
+            self.logger.warning(
+                "Skipping non-success response: status=%s url=%s",
+                response.status,
+                response.url,
+            )
+            return
+
         page_id = response.css('meta[name="pageId"]::attr(content)').get()
         if page_id is None:
             page_id = response.url
