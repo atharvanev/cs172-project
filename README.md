@@ -1,6 +1,6 @@
 # CS 172 Project: Web Search Engine
 
-This repo is for the CS 172 course project. Part A (web option) is a Wikipedia crawler built with Scrapy. It walks English Wikipedia articles starting from seed URLs, records each page’s URL, title, body text, crawl time, depth, and outgoing links, and writes structured data to JSON. Raw HTML snapshots also land under a `pages` folder while the crawl runs.
+This repo is for the CS 172 course project. Part A (web option) is a Wikipedia crawler built with Scrapy. It walks English Wikipedia articles starting from seed URLs, records each page’s URL, title, body text, crawl time, depth, and outgoing links, and writes structured data to JSON. Raw HTML snapshots also land under a `pages` folder while the crawl runs. Part B (web option) is where we will take the outputted JSON object (typically stored in a outputs.json file) and use those json objects to create indexes for each page. Then use those indexes to help query pages from a list of them on a custom front-end using Next.JS as a framework.
 
 ## Team
 
@@ -47,6 +47,15 @@ If you already have `venv` and want to run Scrapy yourself (different flags or o
 source venv/bin/activate
 cd crawling
 scrapy crawl wiki -o output.json
+```
+
+For running the pylucene, it has not been set up completely yet. Must download pylucene locally before beginning use. 
+
+For the Front-End, from the home directory in a separate terminal:
+
+```bash
+cd crawling/fron_end/172_project
+npm run dev
 ```
 
 ## Tune the crawl

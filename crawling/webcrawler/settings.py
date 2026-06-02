@@ -87,7 +87,7 @@ CONCURRENT_REQUESTS_PER_DOMAIN = 1
 # Set settings whose default value is deprecated to a future-proof value
 FEED_EXPORT_ENCODING = "utf-8"
 DEPTH_LIMIT = 1
-STORAGE_THRESHOLD_MB = 5 # Stop crawling after pages/ exceeds this many MB
+STORAGE_THRESHOLD_MB = 10 # Stop crawling after pages/ exceeds this many MB
 DOWNLOAD_DELAY = 1.5
 
 # BFS: process shallower pages first, use FIFO queues so same-depth pages are ordered correctly
