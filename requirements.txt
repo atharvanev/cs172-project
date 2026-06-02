@@ -4,3 +4,6 @@ Scrapy==2.15.2
  
 # HTML parsing
 beautifulsoup4==4.8.1
+
+#Indexing 
+whoosh==2.7.4
