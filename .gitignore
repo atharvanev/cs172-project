@@ -5,3 +5,5 @@ pages/
 crawling/output.json
 crawling/500mb.json
 crawling/whoosh_index
+crawling/whoosh_index_2mb
+crawling/whoosh_index_500mb
