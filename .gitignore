@@ -3,4 +3,5 @@ venv
 .vscode
 pages/
 crawling/output.json
+crawling/500mb.json
 crawling/whoosh_index
