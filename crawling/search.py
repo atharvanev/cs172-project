@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from whoosh import index
+from whoosh import index, scoring
 from whoosh.qparser import MultifieldParser
 
 _BASE_DIR = Path(__file__).resolve().parent
@@ -8,11 +8,15 @@ INDEX_DIR = str(_BASE_DIR / "whoosh_index_500mb")
 
 def search(query_text, limit=10):
     ind = index.open_dir(INDEX_DIR)
-    with ind.searcher() as searcher:
+    with ind.searcher(weighting=scoring.BM25F()) as searcher:
         if not query_text or not query_text.strip():
             return []
 
-        parser = MultifieldParser(["title", "body"], schema=ind.schema)
+        parser = MultifieldParser(
+            ["title", "body"],
+            schema=ind.schema,
+            fieldboosts={"title": 2.0, "body": 1.0},
+        )
         query = parser.parse(query_text)
         results = searcher.search(query, limit=limit)
 
