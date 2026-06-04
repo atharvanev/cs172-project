@@ -1,8 +1,10 @@
+from pathlib import Path
+
 from whoosh import index
 from whoosh.qparser import MultifieldParser
-from whoosh.query import Every
 
-INDEX_DIR = "whoosh_index_500mb"
+_BASE_DIR = Path(__file__).resolve().parent
+INDEX_DIR = str(_BASE_DIR / "whoosh_index_500mb")
 
 def search(query_text, limit=10):
     ind = index.open_dir(INDEX_DIR)
