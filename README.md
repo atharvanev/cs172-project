@@ -9,6 +9,11 @@ This repo is for the CS 172 course project. Part A (web option) is a Wikipedia c
 - Austin Le
 - David Lee
 - Brandon Sun
+- 
+## Demo
+
+https://youtu.be/ePR78bnVC7E
+
 
 ## What gets stored
 
