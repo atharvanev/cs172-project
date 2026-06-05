@@ -58,10 +58,16 @@ python indexer.py
 For the Front-End, from the home directory in a separate terminal:
 
 ```bash
-cd crawling/fron_end/172_project
+cd crawling/front_end/172_project
 npm run dev
 ```
 
+For the Back-End, from the home directory in a separate terminal:
+
+```bash
+cd crawling/
+python search_api.py 
+```
 ## Tune the crawl
 
 Before a long run, open `crawling/webcrawler/settings.py` and adjust:
